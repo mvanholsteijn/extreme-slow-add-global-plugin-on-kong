@@ -1,0 +1,26 @@
+#!/bin/bash
+
+function health {
+	docker inspect --format '{{.State.Health.Status}}' $(docker-compose ps -q $1)
+}
+
+function start {
+	docker-compose pull
+	docker-compose run kong-migrations
+	docker-compose up -d kong
+	while [[ $(health kong) != "healthy" ]]; do
+		echo "INFO: waiting 5s for kong to be healthy, now $(health kong)">&2
+		sleep 5
+	done
+}
+
+function show {
+	docker-compose up secure-kong-api
+}
+
+function main {
+	start
+	show
+}
+
+main

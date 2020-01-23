@@ -1,0 +1,97 @@
+#!/bin/bash
+set -e -o pipefail
+
+KONG_HOST=${KONG_HOST:-localhost}
+LOG_DESTINATION=${LOG_DESTINATION:-/dev/null}
+ADMIN_USER=${ADMIN_USER:-kong}
+API_IP_WHITELIST=${API_IP_WHITELIST:-0.0.0.0/0}
+API_IP_WHITELIST_ARRAY=$(sed -e 's/,/", "/g' -e 's/^/["/' -e 's/$/"]/' <<< $API_IP_WHITELIST)
+
+function add_plugin {
+    local name plugin_id
+    local url
+    name=$(jq -r .name <<< "$1")
+    uri=${2:-plugins}
+    
+    plugin_id=$(curl -sS --fail http://${KONG_HOST}:8001/$uri?size=1000 | \
+		jq --arg name $name -r '.data[]| select(.name == $name) | .id')
+    if [[ -z $plugin_id ]] ; then
+	echo "INFO: adding plugin $name to $uri"
+	time curl -o $LOG_DESTINATION -sS --fail -X POST http://${KONG_HOST}:8001/$uri \
+		    -H 'Content-Type: application/json' -d "$1"
+    else
+	echo "INFO: patch plugin $name on $uri"
+	curl -o $LOG_DESTINATION -sS --fail -X PATCH http://${KONG_HOST}:8001/plugins/$plugin_id \
+		    -H 'Content-Type: application/json' -d "$1"
+    fi
+}
+
+
+function add_global_plugins {
+    local rt_plugin
+
+    rt_plugin='{
+	"name": "response-transformer",
+	"config": {
+	  "add": {
+            "headers": [
+	      "X-Content-Type-Options: nosniff",
+	      "Strict-Transport-Security: max-age=31536000; includeSubdomains",
+	      "Cache-Control: no-cache, no-store",
+	      "X-Frame-Options: SAMEORIGIN"
+	    ]
+          }
+        },
+        "protocols": ["http", "https"],
+        "run_on": "first"
+    }'
+
+    dd_plugin='{
+	"name": "datadog",
+	"config": {
+	  "host": "docker0",
+	  "metrics": [
+	    {
+	      "sample_rate": 1,
+	      "name": "request_count",
+	      "stat_type": "counter",
+	      "consumer_identifier": "username",
+	      "tags": []
+	    },
+	    {
+	      "name": "latency",
+	      "stat_type": "timer",
+	      "consumer_identifier": "username",
+	      "tags": []
+	    },
+	    {
+	      "name": "request_size",
+	      "stat_type": "timer",
+	      "consumer_identifier": "username",
+	      "tags": []
+	    },
+	    {
+	      "name": "response_size",
+	      "stat_type": "timer",
+	      "tags": []
+	    },
+	    {
+	      "name": "upstream_latency",
+	      "stat_type": "timer",
+	      "tags": []
+	    },
+	    {
+	      "name": "kong_latency",
+	      "stat_type": "timer",
+	      "tags": []
+	    }
+	  ]
+	},
+        "protocols": ["http", "https"],
+        "run_on": "first"
+    }'
+    add_plugin "$rt_plugin"
+    add_plugin "$dd_plugin"
+}
+
+add_global_plugins
