@@ -1,16 +1,24 @@
 # extreme slow add plugin on Kong 1.4.3
 
-Adding a plugin to Kong `1.4.3 on a freshly initialized database is very slow (~30s).
+Adding a plugin to Kong 1.4.3 on a freshly initialized database is very slow (~30s).
 
 
-to reproduce
-============
+checkout reproduction
+====================
+to setup the reproduction environment, type:
 ```
 git clone https://github.com/mvanholsteijn/extreme-slow-add-global-plugin-on-kong.git
 cd extreme-slow-add-global-plugin-on-kong
+```
+
+reproduction kong 1.4
+======================
+```
 export KONG_DOCKER_TAG=kong:1.4.3 
 ./reproduce
 ```
+Kong 1.4 output
+================
 This will result in the following output:
 ```
  ./reproduce
@@ -37,15 +45,27 @@ secure-kong-api_1  | INFO: adding plugin response-transformer to plugins
 secure-kong-api_1  | real	0m29.992s
 secure-kong-api_1  | user	0m0.005s
 secure-kong-api_1  | sys	0m0.006s
+secure-kong-api_1  | INFO: adding plugin datadog to plugins
+secure-kong-api_1  | real	0m30.054s
+secure-kong-api_1  | user	0m0.005s
+secure-kong-api_1  | sys	0m0.006s
 ```
+as you can see, adding a plugin takes just about 30s.
 
-This problem did not exist in Kong 1.3.1.
+
+
+reproduction Kong 1.3
+=======================
+This problem did not exist in Kong 1.3
 
 ```
 docker-compose down
 export KONG_DOCKER_TAG=kong:1.3.1
 ./reproduce
 ```
+
+Kong 1.3.1 output
+==================
 As you can see from the output, the add plugin takes just under 0.2s.
 ```
 Pulling db              ... done
